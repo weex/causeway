@@ -13,6 +13,7 @@ from sqlalchemy import and_
 
 from settings import DATABASE_URI, PRICE, DATA_DIR, SERVER_PORT, DEBUG, TESTNET
 import os
+import re
 import json
 import random
 import time
@@ -229,10 +230,31 @@ def query():
                )
     elif string == 'mediators':
         mediator_query = Kv.query.filter(and_(Kv.testnet == testnet,
-                                              Kv.value.ilike('%\nWilling to mediate: True%'))).paginate(1, 100, False)
+                                              Kv.value.ilike('%\nWilling to mediate: True%'))).paginate(1, 10000, False)
         mediators = mediator_query.items
+        latest = {}
+        mediator_res = {}
+        sin_pattern = re.compile('Secure Identity Number:\s(.*)\n')
+        timestamp_pattern = re.compile('Timestamp:\s(.*)\n')
         for m in mediators:
-            res.append(m.value)
+            contents = m.value
+            match = sin_pattern.search(contents).groups()
+            print(match)
+            if match:
+                msin = match[0]
+                print(msin)
+                tmatch = timestamp_pattern.search(contents)
+                timestamp = tmatch.groups()[0] if tmatch else 0
+
+                if (msin in latest and timestamp > latest[msin]) or\
+                   msin not in latest:
+                    mediator_res[msin] = contents
+                    latest[msin] = timestamp
+
+        for msin in mediator_res.keys():
+            res.append(mediator_res[msin])
+            print(msin)
+
     elif string == 'jobs':
         q = Kv.query.filter(and_(Kv.testnet == testnet,
                                  Kv.value.like('%\nRein Job%'))).paginate(1, 100, False)
